@@ -40,28 +40,28 @@ getReachDeviation <- function(df,distance=2.5) {
   
   # at 1/4 the target distance
   # target distance was 10 cm
-  # 2.5 cm
+  # distance = 2.5 cm
   
   distances <- sqrt(X^2 + Y^2)
   idx <- which(distances > distance)[1]
   
-  
-  
-  # print(idx)
   x <- X[idx]
   y <- Y[idx]
-  
   
   fd <- abs(distances[idx]   - distance)
   cd <- abs(distances[idx-1] - distance)
   
-  cprop <- cd / (cd + fd)
-  fprop <- fd / (cd + fd)
+  fw <- cd / (cd + fd)
+  # cw <- fd / (cd + fd)
   
-  # print(c(cprop, fprop, cprop + fprop)) # should be 1
-  
-  x <- (X[idx-1] * fprop) + (X[idx] * cprop)
-  y <- (Y[idx-1] * fprop) + (Y[idx] * cprop)
+  x <- X[idx-1] + (diff(X[c(idx-1,idx)]) * fw)
+  y <- Y[idx-1] + (diff(Y[c(idx-1,idx)]) * fw)
+
+  # fcx <- X[idx] - (diff(X[c(idx-1,idx)]) * cw)
+  # fcy <- Y[idx] - (diff(Y[c(idx-1,idx)]) * cw)
+  # 
+  # x <- (cfx + fcx) / 2
+  # y <- (cfy + fcy) / 2
   
   # print(sqrt(x^2 + y^2))
   
