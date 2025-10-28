@@ -48,22 +48,24 @@ getReachDeviation <- function(df,distance=2.5) {
   x <- X[idx]
   y <- Y[idx]
   
-  fd <- abs(distances[idx]   - distance)
-  cd <- abs(distances[idx-1] - distance)
-  
-  fw <- cd / (cd + fd)
-  # cw <- fd / (cd + fd)
-  
-  x <- X[idx-1] + (diff(X[c(idx-1,idx)]) * fw)
-  y <- Y[idx-1] + (diff(Y[c(idx-1,idx)]) * fw)
-
-  # fcx <- X[idx] - (diff(X[c(idx-1,idx)]) * cw)
-  # fcy <- Y[idx] - (diff(Y[c(idx-1,idx)]) * cw)
+  # # this interpolates a point usually just before 'distance'
+  # # the method is too simple
+  # fd <- abs(distances[idx]   - distance)
+  # cd <- abs(distances[idx-1] - distance)
   # 
-  # x <- (cfx + fcx) / 2
-  # y <- (cfy + fcy) / 2
-  
-  # print(sqrt(x^2 + y^2))
+  # fw <- cd / (cd + fd)
+  # # cw <- fd / (cd + fd)
+  # 
+  # x <- X[idx-1] + (diff(X[c(idx-1,idx)]) * fw)
+  # y <- Y[idx-1] + (diff(Y[c(idx-1,idx)]) * fw)
+  # 
+  # # fcx <- X[idx] - (diff(X[c(idx-1,idx)]) * cw)
+  # # fcy <- Y[idx] - (diff(Y[c(idx-1,idx)]) * cw)
+  # # 
+  # # x <- (cfx + fcx) / 2
+  # # y <- (cfy + fcy) / 2
+  # 
+  # # print(sqrt(x^2 + y^2))
   
   th <- (-1*target/180) * pi
   R <- t(matrix(data=c(cos(th),sin(th),-sin(th),cos(th)),nrow=2,ncol=2))
