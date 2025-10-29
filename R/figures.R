@@ -41,6 +41,8 @@ plotImplicitGeneralization <- function() {
   
   layout(mat=matrix(c(1:2),ncol=1))
   
+  par(mar=c(4.5,4,0.5,0.5))
+  
   df <- read.csv('data/exp1/nocursor_reachdeviations.csv', stringsAsFactors = FALSE)
   
   # SPLIT BY ROTATION DIRECTION!
@@ -68,7 +70,7 @@ plotImplicitGeneralization <- function() {
     legend_lty    <- c()
     
     plot(NULL,
-         xlim=c(170,10),ylim=c(-5,50),
+         xlim=c(170,10),ylim=c(-15,60),
          main='',xlab='target [deg]',ylab='reach aftereffect [deg]',
          bty='n',ax=F)
     
@@ -167,12 +169,12 @@ plotImplicitGeneralization <- function() {
            col=col,
            lty=3)
     
-    legend_labels <- c(legend_labels, 'hand localization shift')
+    legend_labels <- c(legend_labels, 'localization shift')
     legend_colors <- c(legend_colors, col)
     legend_lty    <- c(legend_lty, 3)
     
-    axis(side=1,at=c(15,40,65,90,115,140,165))
-    axis(side=2,at=c(0,15,30,45))
+    axis(side=1,at=c(15,40,65,90,115,140,165),cex.axis=0.8)
+    axis(side=2,at=c(0,15,30,45),cex.axis=0.8)
     
     text(x=90+(c(-1,1)*(45/2)),
          y=c(55,55),
@@ -180,13 +182,13 @@ plotImplicitGeneralization <- function() {
                        'ccw'=c('ideal\nhand','cursor/\ntarget'))[[direction]],
          xpd=TRUE)
     
-    legend( x = c('cw'=165,'ccw'=60)[direction],
-            y = 45,
+    legend( x      = c('cw'=165,'ccw'=60)[direction],
+            y      = 45,
             legend = legend_labels,
-            col = legend_colors,
-            lty = legend_lty,
-            bty = 'n',
-            cex=0.8)
+            col    = legend_colors,
+            lty    = legend_lty,
+            bty    = 'n',
+            cex    = 0.8 )
     
   }
   
