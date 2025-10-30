@@ -17,11 +17,11 @@ bootstrapSplineInterpolation <- function( df,
   xvals <- data.matrix$x
   dm <- as.matrix( data.matrix[,-1] )  # remove x column
   
-  # bootstrap the columns (IDs) using sample
+  # bootstrap the columns (IDs) using `sample()`
   boot_dm <- array( dm[, sample( 1:ncol(dm), 
                                  size=(bootstraps * ncol(dm)), 
                                  replace=TRUE ) ], 
-                    dim=c(8,9,1000))
+                    dim=c(length(xvals),nrow(dm),bootstraps))
   
   # average across participants in each sample:
   boot_dm <- apply(boot_dm, MARGIN=c(1,3), FUN=mean, na.rm=TRUE)
