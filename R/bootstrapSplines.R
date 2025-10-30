@@ -11,7 +11,7 @@ bootstrapSplineInterpolation <- function( df,
   # we bootstrap the IDs
   
   # make a matrix with IDs in columns, x in rows, and y in the cells:
-  shortdf <- aggregate( y ~ x + ID, data=my_df, FUN=mean )
+  shortdf <- aggregate( y ~ x + ID, data=df, FUN=mean )
   data.matrix <- reshape2::dcast( shortdf, x ~ ID, value.var = 'y' )
 
   xvals <- data.matrix$x
@@ -36,7 +36,7 @@ bootstrapSplineInterpolation <- function( df,
                nknots = nknots
                )
   
-  return(list('m'=a, 'x'=xout))
+  return(list('y'=a, 'x'=xout))
   # spl <- stats::smooth.spline( x = df$x, 
   #                              y = df$y, 
   #                              spar = spar, 
