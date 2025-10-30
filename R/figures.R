@@ -1,7 +1,85 @@
 
-plotTrainingReachesExp1 <- function() {
+setupFigureFile <- function(target='inline',width=8,height=6,dpi=300,filename) {
+  
+  if (target == 'pdf') {
+    pdf(file   = filename, 
+        width  = width, 
+        height = height)
+  }
+  if (target == 'svg') {
+    svglite::svglite( filename = filename,
+                      width = width,
+                      height = height,
+                      fix_text_size = FALSE) 
+    # fix_text_size messes up figures on my machine... 
+    # maybe it's better on yours?
+  }
+  if (target == 'png') {
+    png( filename = filename,
+         width = width*dpi,
+         height = height*dpi,
+         res = dpi
+    )
+  }
+  if (target == 'tiff') {
+    tiff( filename = filename,
+          compression = 'lzw',
+          width = width*dpi,
+          height = height*dpi,
+          res = dpi
+    )
+  }
+}
+
+# plotTrainingReachesExp1 <- function() {
+#   
+#   df <- read.csv('data/exp1/training_reachdeviations.csv', stringsAsFactors = FALSE)
+#   
+#   participants <- unique(df$participant)
+#   
+#   # normalize & baseline:
+#   
+#   for (ppid in participants) {
+#     
+#     # participant data;
+#     ppdf <- df[which(df$participant == ppid),]
+#     
+#     # print(ppid)
+#     # baseline <- mean(ppdf$reachdeviation_deg[which(ppdf$block %in% c(6,7,8,9,10,11))], na.rm=TRUE)
+#     # print(baseline)
+#     
+#     # baseline on second half of aligned phase:
+#     ppdf$reachdeviation_deg <- ppdf$reachdeviation_deg - median(ppdf$reachdeviation_deg[which(ppdf$block %in% c(6,7,8,9,10,11))], na.rm=TRUE)
+#     
+#     # normalize and put back in main data frame:
+#     if (ppdf$rotation_deg[nrow(ppdf)] > 0) {
+#       df$reachdeviation_deg[which(df$participant == ppid)] <- -1 * ppdf$reachdeviation_deg
+#     }
+# 
+#   }
+#   
+#   aggRD <- aggregate(reachdeviation_deg ~ trial, data=df, FUN=mean)
+#   
+#   plot(aggRD, type='l')
+#   lines( x = c(1,385,385,767),
+#          y = c(0,0,45,45),
+#          col='#FF9999')  # 385 -- 767
+#   
+# }
+
+
+fig2_exp1 <- function(target='inline') {
+  
+  
+  
+  layout(mat=matrix(c(1:3),ncol=1))
+  
+  par(mar=c(4.5,4,0.5,0.5))
+  
   
   df <- read.csv('data/exp1/training_reachdeviations.csv', stringsAsFactors = FALSE)
+  
+  df$direction <- ''
   
   participants <- unique(df$participant)
   
@@ -22,26 +100,67 @@ plotTrainingReachesExp1 <- function() {
     # normalize and put back in main data frame:
     if (ppdf$rotation_deg[nrow(ppdf)] > 0) {
       df$reachdeviation_deg[which(df$participant == ppid)] <- -1 * ppdf$reachdeviation_deg
+      df$direction[which(df$participant == ppid)] <- 'ccw'
+    } else {
+      df$direction[which(df$participant == ppid)] <- 'cw'
     }
-
+    
   }
   
-  aggRD <- aggregate(reachdeviation_deg ~ trial, data=df, FUN=mean)
+  # aggRD <- aggregate(reachdeviation_deg ~ trial, data=df, FUN=mean)
+  # 
+  # plot(aggRD, type='l')
+  # lines( x = c(1,385,385,767),
+  #        y = c(0,0,45,45),
+  #        col='#FF9999')  # 385 -- 767
   
-  plot(aggRD, type='l')
-  lines( x = c(1,385,385,767),
+  
+  plot( NULL, NULL,
+        xlim=c(0,768), ylim=c(-10,50),
+        xlab='trial', ylab='reach deviation [deg]', main='',
+        bty='n', ax=F)
+  
+  lines( x = c(0,385,385,767),
          y = c(0,0,45,45),
-         col='#FF9999')  # 385 -- 767
+         col='#000000')  # 385 -- 767
   
-}
-
-
-plotImplicitGeneralization <- function() {
+  for (direction in c('cw','ccw')) {
+    
+    col <- c('ccw'='orange','cw'='turquoise')[direction]
+    
+    ddf <- df[which(df$direction == direction),]
+    
+    CI <- aggregate(reachdeviation_deg ~ trial,
+                    data = ddf,
+                    FUN = Reach::getConfidenceInterval,
+                    method='b')
+    
+    lo <- CI$reachdeviation_deg[,1]
+    hi <- CI$reachdeviation_deg[,2]
+    
+    
+    polygon( x = c( CI$trial, rev(CI$trial)),
+             y = c( lo, rev(hi)),
+             border=NA,
+             col = Reach::colorAlpha(col=col, alpha=34),
+             xpd=TRUE)
+    
+    aggRD <- aggregate(reachdeviation_deg ~ trial, data=ddf, FUN=mean)
+    
+    lines( x = aggRD$trial,
+           y = aggRD$reachdeviation_deg,
+           col=col)
+    
+  }
   
+  axis(side=1,at=seq(0,768,by=32),cex.axis=0.8)
+  axis(side=2,at=c(0,15,30,45),cex.axis=0.8)
   
-  layout(mat=matrix(c(1:2),ncol=1))
+  ## implicit measures / generalization
   
-  par(mar=c(4.5,4,0.5,0.5))
+  ## first two aligned blocks are skipped for baselining
+  ## first two rotated blocks are skipped to saturate adaptation (more or less)
+  
   
   df <- read.csv('data/exp1/nocursor_reachdeviations.csv', stringsAsFactors = FALSE)
   
@@ -124,6 +243,32 @@ plotImplicitGeneralization <- function() {
     legend_colors <- c(legend_colors, col)
     legend_lty    <- c(legend_lty, 1)
     
+    # implicit generalization peak locations:
+    
+    gdf <- rotated_all
+    names(gdf) <- c('x', 'ID', 'y')
+    bs <- bootstrapSplineInterpolation( df         = gdf,
+                                        bootstraps = 5000,
+                                        spar       = 0.25, 
+                                        npoints    = 1501,
+                                        # xout=seq(min(df$x),max(df$x), length.out=npoints),
+                                        # nknots=6
+          )
+    
+    # print(dim(bs$y))
+    peaks <- bs$x[apply(bs$y, MARGIN=2, FUN=which.max)]
+    CI <- quantile(peaks, probs=c(0.025,0.5,0.975))
+    # print(CI)
+    
+    polygon( x = c( CI[1], CI[3], CI[3], CI[1]),
+             y = c( -2.5, -2.5, -7.5, -7.5),
+             border=NA,
+             col = Reach::colorAlpha(col=col, alpha=34),
+             xpd=TRUE)
+    lines( x = c( CI[2], CI[2]),
+           y = c(-2.5, -7.5),
+           col = col)
+    
     # add hand localization generalization curve
     
     dlocdf <- locdf[which(locdf$participant %in% unique(ddf$participant)),]
@@ -168,6 +313,32 @@ plotImplicitGeneralization <- function() {
            y = loc_rotated$locdev_deg,
            col=col,
            lty=3)
+    
+    
+    gdf <- loc_rotated_all
+    names(gdf) <- c('x', 'ID', 'y')
+    bs <- bootstrapSplineInterpolation( df         = gdf,
+                                        bootstraps = 5000,
+                                        spar       = 0.25, 
+                                        npoints    = 1501,
+                                        # xout=seq(min(df$x),max(df$x), length.out=npoints),
+                                        # nknots=6
+    )
+    
+    # print(dim(bs$y))
+    peaks <- bs$x[apply(bs$y, MARGIN=2, FUN=which.max)]
+    CI <- quantile(peaks, probs=c(0.025,0.5,0.975))
+    # print(CI)
+    
+    polygon( x = c( CI[1], CI[3], CI[3], CI[1]),
+             y = c( -10, -10, -15, -15),
+             border=NA,
+             col = Reach::colorAlpha(col=col, alpha=34),
+             xpd=TRUE)
+    lines( x = c( CI[2], CI[2]),
+           y = c(-10, -15),
+           col = col)
+    
     
     legend_labels <- c(legend_labels, 'localization shift')
     legend_colors <- c(legend_colors, col)
