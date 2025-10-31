@@ -1,35 +1,35 @@
 
-setupFigureFile <- function(target='inline',width=8,height=6,dpi=300,filename) {
-  
-  if (target == 'pdf') {
-    pdf(file   = filename, 
-        width  = width, 
-        height = height)
-  }
-  if (target == 'svg') {
-    svglite::svglite( filename = filename,
-                      width = width,
-                      height = height,
-                      fix_text_size = FALSE) 
-    # fix_text_size messes up figures on my machine... 
-    # maybe it's better on yours?
-  }
-  if (target == 'png') {
-    png( filename = filename,
-         width = width*dpi,
-         height = height*dpi,
-         res = dpi
-    )
-  }
-  if (target == 'tiff') {
-    tiff( filename = filename,
-          compression = 'lzw',
-          width = width*dpi,
-          height = height*dpi,
-          res = dpi
-    )
-  }
-}
+# setupFigureFile <- function(target='inline',width=8,height=6,dpi=300,filename) {
+#   
+#   if (target == 'pdf') {
+#     pdf(file   = filename, 
+#         width  = width, 
+#         height = height)
+#   }
+#   if (target == 'svg') {
+#     svglite::svglite( filename = filename,
+#                       width = width,
+#                       height = height,
+#                       fix_text_size = FALSE) 
+#     # fix_text_size messes up figures on my machine... 
+#     # maybe it's better on yours?
+#   }
+#   if (target == 'png') {
+#     png( filename = filename,
+#          width = width*dpi,
+#          height = height*dpi,
+#          res = dpi
+#     )
+#   }
+#   if (target == 'tiff') {
+#     tiff( filename = filename,
+#           compression = 'lzw',
+#           width = width*dpi,
+#           height = height*dpi,
+#           res = dpi
+#     )
+#   }
+# }
 
 # plotTrainingReachesExp1 <- function() {
 #   
@@ -70,7 +70,11 @@ setupFigureFile <- function(target='inline',width=8,height=6,dpi=300,filename) {
 
 fig2_exp1 <- function(target='inline') {
   
-  
+  Reach::setupFigureFile( target   = target,
+                          width    = 4.5,
+                          height   = 6,
+                          dpi      = 300,
+                          filename = paste0('doc/figures/fig2_exp1.', target) )
   
   layout(mat=matrix(c(1:3),ncol=1))
   
@@ -114,6 +118,8 @@ fig2_exp1 <- function(target='inline') {
   #        y = c(0,0,45,45),
   #        col='#FF9999')  # 385 -- 767
   
+  Ntab <- aggregate(direction ~ participant, data=df, FUN=head, n=1)
+  Ns <- table(Ntab$direction)
   
   plot( NULL, NULL,
         xlim=c(0,768), ylim=c(-10,50),
@@ -153,8 +159,15 @@ fig2_exp1 <- function(target='inline') {
     
   }
   
-  axis(side=1,at=seq(0,768,by=32),cex.axis=0.8)
+  axis(side=1,at=seq(0,768,by=64),cex.axis=0.8)
   axis(side=2,at=c(0,15,30,45),cex.axis=0.8)
+  
+  legend( x = 100,
+          y = 50,
+          legend = sprintf('%s (N=%d)',c('ccw','cw'),Ns),
+          col=c('orange','turquoise'),
+          bty='n',
+          lty=1)
   
   ## implicit measures / generalization
   
@@ -207,10 +220,10 @@ fig2_exp1 <- function(target='inline') {
     # baseline the rotated data per participant:
     participants <- unique(rotated_all$participant)
     for (ppid in participants) {
-      for (target in unique(rotated_all$targetangle_deg)) {
-        al_idx <- which(aligned_all$participant == ppid & aligned_all$targetangle_deg == target)
+      for (targetang in unique(rotated_all$targetangle_deg)) {
+        al_idx <- which(aligned_all$participant == ppid & aligned_all$targetangle_deg == targetang)
         target_bias <- median(aligned_all$reachdeviation_deg[al_idx], na.rm=TRUE)
-        ro_idx <- which(rotated_all$participant == ppid & rotated_all$targetangle_deg == target)
+        ro_idx <- which(rotated_all$participant == ppid & rotated_all$targetangle_deg == targetang)
         rotated_all$reachdeviation_deg[ro_idx] <- rotated_all$reachdeviation_deg[ro_idx] - target_bias
       }
     }
@@ -283,10 +296,10 @@ fig2_exp1 <- function(target='inline') {
     # baseline the rotated data per participant:
     participants <- unique(loc_rotated_all$participant)
     for (ppid in participants) {
-      for (target in unique(loc_rotated_all$targetangle_deg)) {
-        al_idx <- which(loc_aligned_all$participant == ppid & loc_aligned_all$targetangle_deg == target)
+      for (targetang in unique(loc_rotated_all$targetangle_deg)) {
+        al_idx <- which(loc_aligned_all$participant == ppid & loc_aligned_all$targetangle_deg == targetang)
         target_bias <- median(loc_aligned_all$locdev_deg[al_idx], na.rm=TRUE)
-        ro_idx <- which(loc_rotated_all$participant == ppid & loc_rotated_all$targetangle_deg == target)
+        ro_idx <- which(loc_rotated_all$participant == ppid & loc_rotated_all$targetangle_deg == targetang)
         loc_rotated_all$locdev_deg[ro_idx] <- loc_rotated_all$locdev_deg[ro_idx] - target_bias
       }
     }
@@ -362,5 +375,26 @@ fig2_exp1 <- function(target='inline') {
             cex    = 0.8 )
     
   }
+  
+  if (target %in% c('pdf','svg','png','tiff')) {
+    # cat('need to turn off the device\n')
+    dev.off()
+  }
+  
+}
+
+fig3_exp2 <- function(target='inline') {
+  
+  Reach::setupFigureFile( target   = target,
+                          width    = 4.5,
+                          height   = 6,
+                          dpi      = 300,
+                          filename = paste0('doc/figures/fig3_exp2.', target) )
+  
+  layout(mat=matrix(c(1:3),ncol=1))
+  
+  par(mar=c(4.5,4,0.5,0.5))
+  
+  df <- read.csv('data/exp2/training_reachdeviations.csv', stringsAsFactors = FALSE)
   
 }
