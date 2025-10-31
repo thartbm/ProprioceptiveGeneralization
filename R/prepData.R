@@ -1,5 +1,7 @@
 # maybe this should be outside of the function libraries?
 
+# packages -----
+
 installReach <- function() {
   
   # library('remotes')
@@ -13,6 +15,8 @@ installReach <- function() {
   }
   
 }
+
+# unclean data -----
 
 # get data from https://osf.io/kxmjs/
 
@@ -31,52 +35,8 @@ getOSFdata <- function(experiments=c(2,3)) {
 }
 
 
-# exp X / exp 1 -----
+# data processing -----
 
-processExpX <- function(rotations=c(45)) {
-  
-  demographics <- read.csv('data/ORG/exp_X/demographics.csv', stringsAsFactors = FALSE)
-  
-  demographics <- demographics[!is.na(demographics$age), ]
-  
-  pp_data <- c()
-  
-  for (ppid in demographics$participant) {
-    
-    if (dir.exists(sprintf('data/ORG/exp_X/r45/%s', ppid))) {
-      
-      pp_data <- c(pp_data, ppid)
-      
-    }
-    
-  }
-  
-  demographics <- demographics[demographics$participant %in% pp_data, ]
-  
-  dir.create('data/exp1', showWarnings = FALSE)
-  
-  write.csv(demographics, 'data/exp1/demographics.csv', row.names = FALSE)
-  
-  
-  for (ppid in demographics$participant) {
-    
-    # copy the files:
-    file.copy(
-      from = sprintf('data/ORG/exp_X/r45/%s', ppid),
-      to   = 'data/exp1/',
-      recursive = TRUE
-    )
-    
-    # correct the rotation columns for training and nocursor:
-    for (trialtype in c('training','nocursor')) {
-      df <- read.csv( sprintf('data/exp1/%s/%s.csv', ppid, trialtype), stringsAsFactors = FALSE )
-      df$rotation_deg[which(df$block < 12)] <- 0
-      write.csv( df, sprintf('data/exp1/%s/%s.csv', ppid, trialtype), row.names = FALSE )
-    }
-
-  }
-  
-}
 
 
 getReachDeviations <- function(exp, trialtype) {
@@ -110,60 +70,67 @@ getReachDeviations <- function(exp, trialtype) {
   
 }
 
-getReachDeviation <- function(df,distance=2.5) {
+getReachDeviation <- function(df,cutoff=2.5) {
   
   
-  target <- df$targetangle_deg[1]
-  
-  X <- df$handx_cm
-  Y <- df$handy_cm
+  # X <- df$handx_cm
+  # Y <- df$handy_cm
   
   # at 1/4 the target distance
   # target distance was 10 cm
   # distance = 2.5 cm
   
-  distances <- sqrt(X^2 + Y^2)
-  idx <- which(distances > distance)[1]
+  alldistances <- sqrt(df$handx_cm^2 + df$handy_cm^2)
+  idx <- which(alldistances > cutoff)[1]
   
-  x <- X[idx]
-  y <- Y[idx]
+  # sample before AND after the cutoff distance
+  # x <- df$handx_cm[c(idx-1,idx)]
+  # y <- df$handy_cm[c(idx-1,idx)]
   
-  # # this interpolates a point usually just before 'distance'
-  # # the method is too simple
-  # fd <- abs(distances[idx]   - distance)
-  # cd <- abs(distances[idx-1] - distance)
-  # 
-  # fw <- cd / (cd + fd)
-  # # cw <- fd / (cd + fd)
-  # 
-  # x <- X[idx-1] + (diff(X[c(idx-1,idx)]) * fw)
-  # y <- Y[idx-1] + (diff(Y[c(idx-1,idx)]) * fw)
-  # 
-  # # fcx <- X[idx] - (diff(X[c(idx-1,idx)]) * cw)
-  # # fcy <- Y[idx] - (diff(Y[c(idx-1,idx)]) * cw)
-  # # 
-  # # x <- (cfx + fcx) / 2
-  # # y <- (cfy + fcy) / 2
-  # 
-  # # print(sqrt(x^2 + y^2))
+  # deviations from cutoff distance
+  # d1 <- abs(alldistances[idx-1] - cutoff)
+  # d2 <- abs(alldistances[idx]   - cutoff)
   
+  d <- abs(alldistances[c(idx-1,idx)] - cutoff)
+  
+  # weights are inverted relative deviations from cutoff distance
+  # w1 <- d2 / (d1 + d2)
+  # w2 <- d1 / (d1 + d2)
+  
+  w <- c(d[2], d[1]) / sum(d)
+  
+  # create rotation matrix that inverts the target direction:
+  target <- df$targetangle_deg[1]
   th <- (-1*target/180) * pi
   R <- t(matrix(data=c(cos(th),sin(th),-sin(th),cos(th)),nrow=2,ncol=2))
   
-  # rotate the coordinates, add the origin back in
-  norm_sample <- matrix(data=c(x,y),ncol=2) %*% R
   
-  # print(norm_sample)
+  # rotate the coordinates such that the target is at 0 degrees:
+  norm_sample <- matrix(data=c(df$handx_cm[c(idx-1,idx)],df$handy_cm[c(idx-1,idx)]),ncol=2) %*% R
   
-  reachdev <- (atan2(norm_sample[2], norm_sample[1]) / pi) * 180
+  # get the reach deviation for both sample points:
+  # bothreachdevs <- (atan2(norm_sample[,2], norm_sample[,1]) / pi) * 180
   
-  return(c('participant' = df$participant[1],
-           'trial' = df$trial[1],
-           'block' = df$block[1],
-           'set' = df$set[1],
-           'targetangle_deg'=target,
-           'rotation_deg'=df$rotation_deg[1],
-           'reachdeviation_deg'=reachdev))
+  # print(bothreachdevs)
+  # reachdev <- (bothreachdevs[1] * w1) + (bothreachdevs[2] * w2)
+  reachdev <- sum(((atan2(norm_sample[,2], norm_sample[,1]) / pi) * 180) * w)
+  # print(reachdev)
+  
+  # ds <- sqrt(norm_sample[,1]^2 + norm_sample[,2]^2)
+  # print(ds)
+  # print(ds[1] * w1 + ds[2] * w2) # exactly my test distance of 2.5 (apart from rounding issues)
+  
+  
+  return(
+    c(
+      'participant' = df$participant[1],
+      'trial' = df$trial[1],
+      'block' = df$block[1],
+      'set' = df$set[1],
+      'targetangle_deg'=target,
+      'rotation_deg'=df$rotation_deg[1],
+      'reachdeviation_deg'=reachdev)
+  )
   
 }
 
@@ -208,5 +175,117 @@ getLocalizationDeviations <- function(exp) {
   }
   
   write.csv(all_loc_devs, sprintf('data/exp%d/localization_deviations.csv', exp), row.names=FALSE)
+  
+}
+
+
+# clean & process exp X / exp 1 -----
+
+processExpX <- function(rotations=c(45)) {
+  
+  demographics <- read.csv('data/ORG/exp_X/demographics.csv', stringsAsFactors = FALSE)
+  
+  demographics <- demographics[!is.na(demographics$age), ]
+  
+  pp_data <- c()
+  
+  for (ppid in demographics$participant) {
+    
+    if (dir.exists(sprintf('data/ORG/exp_X/r45/%s', ppid))) {
+      
+      pp_data <- c(pp_data, ppid)
+      
+    }
+    
+  }
+  
+  demographics <- demographics[demographics$participant %in% pp_data, ]
+  
+  dir.create('data/exp1', showWarnings = FALSE)
+  
+  write.csv(demographics, 'data/exp1/demographics.csv', row.names = FALSE)
+  
+  
+  for (ppid in demographics$participant) {
+    
+    # copy the files:
+    file.copy(
+      from = sprintf('data/ORG/exp_X/r45/%s', ppid),
+      to   = 'data/exp1/',
+      recursive = TRUE
+    )
+    
+    # correct the rotation columns for training and nocursor:
+    for (trialtype in c('training','nocursor')) {
+      df <- read.csv( sprintf('data/exp1/%s/%s.csv', ppid, trialtype), stringsAsFactors = FALSE )
+      df$rotation_deg[which(df$block < 12)] <- 0
+      write.csv( df, sprintf('data/exp1/%s/%s.csv', ppid, trialtype), row.names = FALSE )
+    }
+
+  }
+  
+  getReachDeviations(exp=1, trialtype='training')
+  getReachDeviations(exp=1, trialtype='nocursor')
+  getLocalizationDeviations(exp=1)
+  
+}
+
+
+
+
+
+
+
+# clean & process exp Y / exp 2 -----
+
+processExpY <- function() {
+  
+  demographics <- read.csv('data/ORG/exp_Y/demographics.csv', stringsAsFactors = FALSE)
+  
+  participants <- c()
+  
+  # check if we have data for all these participants:
+  for (ppid in demographics$participant) {
+    if (dir.exists(sprintf('data/ORG/exp_Y/%sd/', ppid))) {
+      participants <- c(participants, ppid)
+    }
+  }
+  
+  # make new directory for exp 2 data:
+  dir.create('data/exp2', showWarnings = FALSE)
+  
+  # save demographics for these participants only:
+  demographics <- demographics[demographics$participant %in% participants, ]
+  write.csv(demographics, 'data/exp2/demographics.csv', row.names = FALSE)
+  
+  # also save drawing data for these participants only:
+  for (workspace in c('left','right')) {
+    drawings <- read.csv( sprintf('data/ORG/exp_Y/drawing_%s.csv', workspace), stringsAsFactors = FALSE )
+    drawings <- drawings[drawings$participant %in% participants, ]
+  
+    write.csv(drawings, sprintf('data/exp2/drawing_%s.csv', workspace), row.names = FALSE)
+  }
+  
+  # now copy the behavioral data, and add reach deviations etc.
+  
+  for (ppid in participants) {
+    
+    # copy the files:
+    file.copy(
+      from = sprintf('data/ORG/exp_Y/%sd/', ppid),
+      to   = 'data/exp2/',
+      recursive = TRUE
+    )
+    
+    # # correct the rotation columns for training and nocursor:
+    # for (trialtype in c('training','nocursor')) {
+    #   df <- read.csv( sprintf('data/exp2/%s/%s.csv', ppid, trialtype), stringsAsFactors = FALSE )
+    #   # df$rotation_deg[which(df$block < 12)] <- 0
+    #   write.csv( df, sprintf('data/exp2/%s/%s.csv', ppid, trialtype), row.names = FALSE )
+    # }
+    
+  }
+  
+  
   
 }
