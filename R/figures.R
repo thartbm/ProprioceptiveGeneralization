@@ -67,6 +67,28 @@
 #   
 # }
 
+getColors <- function() {
+  
+  cols.op <- c(rgb(255, 147, 41,  255, max = 255), # orange:  21, 255, 148
+               rgb(229, 22,  54,  255, max = 255), # red:    248, 210, 126
+               rgb(207, 0,   216, 255, max = 255), # pink:   211, 255, 108
+               rgb(127, 0,   216, 255, max = 255), # violet: 195, 255, 108
+               rgb(0,   19,  136, 255, max = 255)) # blue:   164, 255, 68
+  
+  cols.tr <- c(rgb(255, 147, 41,  32,  max = 255), # orange:  21, 255, 148
+               rgb(229, 22,  54,  32,  max = 255), # red:    248, 210, 126
+               rgb(207, 0,   216, 32,  max = 255), # pink:   211, 255, 108
+               rgb(127, 0,   216, 32,  max = 255), # violet: 195, 255, 108
+               rgb(0,   19,  136, 32,  max = 255)) # blue:   164, 255, 68
+  
+  cols <- list()
+  cols$op <- cols.op
+  cols$tr <- cols.tr
+  
+  return(cols)
+  
+}
+
 
 fig2_exp1 <- function(target='inline') {
   
@@ -74,14 +96,14 @@ fig2_exp1 <- function(target='inline') {
                           width    = 4.5,
                           height   = 6,
                           dpi      = 300,
-                          filename = paste0('doc/figures/fig2_exp1.', target) )
+                          filename = 'doc/figures/fig2_exp1' )
   
   layout(mat=matrix(c(1:3),ncol=1))
   
   par(mar=c(4.5,4,0.5,0.5))
   
   
-  df <- read.csv('data/exp1/training_reachdeviations.csv', stringsAsFactors = FALSE)
+  df <- read.csv('data/exp1/training_deviations.csv', stringsAsFactors = FALSE)
   
   df$direction <- ''
   
@@ -122,7 +144,7 @@ fig2_exp1 <- function(target='inline') {
   Ns <- table(Ntab$direction)
   
   plot( NULL, NULL,
-        xlim=c(0,768), ylim=c(-10,50),
+        xlim=c(0,769), ylim=c(-10,50),
         xlab='trial', ylab='reach deviation [deg]', main='',
         bty='n', ax=F)
   
@@ -159,7 +181,7 @@ fig2_exp1 <- function(target='inline') {
     
   }
   
-  axis(side=1,at=seq(0,768,by=64),cex.axis=0.8)
+  axis(side=1,at=c(1,seq(96,769,by=96)),cex.axis=0.8)
   axis(side=2,at=c(0,15,30,45),cex.axis=0.8)
   
   legend( x = 100,
@@ -175,7 +197,7 @@ fig2_exp1 <- function(target='inline') {
   ## first two rotated blocks are skipped to saturate adaptation (more or less)
   
   
-  df <- read.csv('data/exp1/nocursor_reachdeviations.csv', stringsAsFactors = FALSE)
+  df <- read.csv('data/exp1/nocursor_deviations.csv', stringsAsFactors = FALSE)
   
   # SPLIT BY ROTATION DIRECTION!
   
@@ -389,12 +411,233 @@ fig3_exp2 <- function(target='inline') {
                           width    = 4.5,
                           height   = 6,
                           dpi      = 300,
-                          filename = paste0('doc/figures/fig3_exp2.', target) )
+                          filename = 'doc/figures/fig3_exp2' )
+  
+  colors <- getColors()
   
   layout(mat=matrix(c(1:3),ncol=1))
   
   par(mar=c(4.5,4,0.5,0.5))
   
-  df <- read.csv('data/exp2/training_reachdeviations.csv', stringsAsFactors = FALSE)
+  tdf <- getNormalizedDeviations(exp=2, trialtype='training')
+  
+  # print(length(unique(tdf$participant)))
+  
+  plot(NULL,NULL,
+       xlim=c(0,769), ylim=c(-10,60),
+       xlab='trial', ylab='reach deviation [deg]', main='',
+       bty='n', ax=F)
+  
+  
+  lines( x = c(0, 193, 193, 289, 289, 385, 385, 481, 481, 577, 577, 768),
+         y = c(0,   0,  10,  10,  20,  20,  30,  30,  40,  40,  50,  50),
+         col = '#999999')
+  
+  
+  # check last 4 blocks for learners / non-learners:
+  b50tdf <- tdf[which(tdf$block>19),]
+  asymptotes <- aggregate(reachdeviation_deg ~ participant, data = b50tdf, FUN=median, na.rm=FALSE)
+  # print(asymptotes)
+  print(length(asymptotes$participant))
+  okpp <- asymptotes$participant[which(asymptotes$reachdeviation_deg > 30)]
+  print(length(okpp))
+  tdf <- tdf[which(tdf$participant %in% okpp),]
+  
+  for (rotation in  c(0,10,20,30,40,50)) {
+    
+    rdf <- tdf[which(tdf$rotation_deg == rotation),]
+    
+    if (rotation == 0) {
+      col.op <- '#00000099'
+      col.tr <- '#00000020'
+    } else {
+      col.op <- colors$op[rotation/10]
+      col.tr <- colors$tr[rotation/10]
+    }
+    
+    CI <- aggregate(reachdeviation_deg ~ trial, data=rdf, FUN=Reach::getConfidenceInterval)
+    polygon( x = c(CI$trial, rev(CI$trial)),
+             y = c(CI$reachdeviation_deg[,1], rev(CI$reachdeviation_deg[,2])),
+             col = col.tr,
+             border = NA
+             )
+    
+    avg <- aggregate(reachdeviation_deg ~ trial, data=rdf, FUN=mean)
+    lines(avg$trial, avg$reachdeviation_deg, col=col.op)
+    
+  }
+  
+  axis(side = 1, at=c(1,seq(96,769,96)))
+  axis(side = 2, at=c(0,10,20,30,40,50),las=2)
+  
+  # no-cursors
+  plot(NULL,NULL,
+       xlim=c(-60,110), ylim=c(-10,60),
+       xlab='relative target [deg]', ylab='reach aftereffects [deg]', main='',
+       bty='n', ax=F)
+  
+  lines(x = c(-60,110),
+        y = c(0,0),
+        col='#999999')
+  lines(x = c(-60,110),
+        y = c(50,50),
+        col='#999999')
+  lines(x = c(0,0),
+        y = c(0,50),
+        col='#999999', lty=2)
+  lines(x = c(50,50),
+        y = c(0,50),
+        col='#999999', lty=2)
+  
+  
+    
+  ndf <- getNormalizedDeviations(exp=2, trialtype='nocursor')
+  ndf <- ndf[which(ndf$participant %in% okpp),]
+  
+  for (rotation in  c(10,20,30,40,50)) {
+    
+    col.op <- colors$op[rotation/10]
+    col.tr <- colors$tr[rotation/10]
+    
+    rdf <- ndf[which(ndf$rotation_deg == rotation),]
+    blocks <- unique(rdf$block)
+    if (length(blocks) == 3) {
+      rdf <- rdf[which(rdf$block > min(blocks)),]
+    }
+    if (length(blocks) == 6) {
+      rdf <- rdf[which(rdf$block > (min(blocks) + 1)),]
+    }
+    
+    bsdf <- rdf[,c('reltargetangle_deg','participant','reachdeviation_deg')]
+    names(bsdf) <- c('x', 'ID', 'y')
+    bs <- bootstrapSplineInterpolation( df         = bsdf,
+                                        bootstraps = 5000,
+                                        spar       = 0.05, 
+                                        npoints    = 1601,
+                                        # xout=seq(min(df$x),max(df$x), length.out=npoints),
+                                        nknots=5
+    )
+    
+    # print(dim(bs$y))
+    peaks <- bs$x[apply(bs$y, MARGIN=2, FUN=which.max)]
+    CI <- quantile(peaks, probs=c(0.025,0.5,0.975))
+    # print(CI)
+
+    polygon( x = c( CI[1], CI[3], CI[3], CI[1]),
+             y = c( 0, 0, 1.5, 1.5) + 51 + ((rotation-10)/5),
+             border=NA,
+             col = col.tr,
+             xpd=TRUE)
+    lines( x = c( CI[2], CI[2]),
+           y = c( 0, 1.5) + 51 + ((rotation-10)/5),
+           col = col.op)
+    
+    CI <- apply(bs$y, MARGIN=1, FUN=quantile, probs=c(0.025, 0.975))
+    polygon( x = c(bs$x, rev(bs$x)),
+             y = c(CI[1,], rev(CI[2,])),
+             col = col.tr,
+             border = NA)
+    
+    lines( x = bs$x,
+           y = apply(bs$y, MARGIN=1, FUN=mean),
+           col = col.op)
+
+  }
+  
+  axis(side = 1, at = c(-55, -30,  -5,  15,  35,  55,  80, 105))
+  axis(side = 2, at=c(0,10,20,30,40,50),las=2)
+  
+  text(x=c(0,50),
+       y=c(-5.2,-5.2),
+       labels = c('cursor/\ntarget','ideal\nhand'),
+       xpd=TRUE)
+  
+  # hand localization
+  plot(NULL,NULL,
+       xlim=c(-60,110), ylim=c(-5,30),
+       xlab='relative target [deg]', ylab='localization shift [deg]', main='',
+       bty='n', ax=F)
+  
+  lines(x = c(-60,110),
+        y = c(0,0),
+        col='#999999')
+  lines(x = c(-60,110),
+        y = c(25,25),
+        col='#999999')
+  lines(x = c(0,0),
+        y = c(0,25),
+        col='#999999', lty=2)
+  lines(x = c(50,50),
+        y = c(0,25),
+        col='#999999', lty=2)
+  
+  
+  
+  ldf <- getNormalizedDeviations(exp=2, trialtype='localization')
+  ldf <- ldf[which(ldf$participant %in% okpp),]
+  
+  
+  for (rotation in  c(10,20,30,40,50)) {
+    
+    col.op <- colors$op[rotation/10]
+    col.tr <- colors$tr[rotation/10]
+    
+    rdf <- ldf[which(ndf$rotation_deg == rotation),]
+    blocks <- unique(rdf$block)
+    if (length(blocks) == 3) {
+      rdf <- rdf[which(rdf$block > min(blocks)),]
+    }
+    if (length(blocks) == 6) {
+      rdf <- rdf[which(rdf$block > (min(blocks) + 1)),]
+    }
+    
+    bsdf <- rdf[,c('reltargetangle_deg','participant','locdev_deg')]
+    names(bsdf) <- c('x', 'ID', 'y')
+    bs <- bootstrapSplineInterpolation( df         = bsdf,
+                                        bootstraps = 5000,
+                                        spar       = 0.05,
+                                        npoints    = 1601,
+                                        # xout=seq(min(df$x),max(df$x), length.out=npoints),
+                                        nknots=5
+    )
+    
+    # print(dim(bs$y))
+    peaks <- bs$x[apply(bs$y, MARGIN=2, FUN=which.max)]
+    CI <- quantile(peaks, probs=c(0.025,0.5,0.975))
+    # print(CI)
+    
+    polygon( x = c( CI[1], CI[3], CI[3], CI[1]),
+             y = c( 0, 0, 0.75, 0.75) + 25.5 + ((rotation-10)/10),
+             border=NA,
+             col = col.tr,
+             xpd=TRUE)
+    lines( x = c( CI[2], CI[2]),
+           y = c( 0, 0.75) + 25.5 + ((rotation-10)/10),
+           col = col.op)
+    
+    CI <- apply(bs$y, MARGIN=1, FUN=quantile, probs=c(0.025, 0.975))
+    polygon( x = c(bs$x, rev(bs$x)),
+             y = c(CI[1,], rev(CI[2,])),
+             col = col.tr,
+             border = NA)
+    
+    lines( x = bs$x,
+           y = apply(bs$y, MARGIN=1, FUN=mean),
+           col = col.op)
+    
+  }
+  
+  axis(side = 1, at = c(-55, -30,  -5,  15,  35,  55,  80, 105))
+  axis(side = 2, at=c(0,5,10,15,20,25),las=2)
+  
+  text(x=c(0,50),
+       y=c(-2.6,-2.6),
+       labels = c('cursor/\ntarget','ideal\nhand'),
+       xpd=TRUE)
+  
+  if (target %in% c('pdf','svg','png','tiff')) {
+    # cat('need to turn off the device\n')
+    dev.off()
+  }
   
 }
