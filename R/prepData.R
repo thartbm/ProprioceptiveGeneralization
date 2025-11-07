@@ -66,7 +66,7 @@ getReachDeviations <- function(exp, trialtype) {
   
   all_devs <- as.data.frame(all_devs, stringsAsFactors = FALSE)
   
-  write.csv(all_devs, sprintf('data/exp%d/%s_reachdeviations.csv', exp, trialtype), row.names = FALSE)
+  write.csv(all_devs, sprintf('data/exp%d/%s_deviations.csv', exp, trialtype), row.names = FALSE)
   
 }
 
@@ -256,7 +256,7 @@ processExpY <- function() {
   
   # save demographics for these participants only:
   demographics <- demographics[demographics$participant %in% participants, ]
-  write.csv(demographics, 'data/exp2/demographics.csv', row.names = FALSE)
+  
   
   # also save drawing data for these participants only:
   for (workspace in c('left','right')) {
@@ -270,12 +270,21 @@ processExpY <- function() {
   
   for (ppid in participants) {
     
+    # 
+    
     # copy the files:
-    file.copy(
-      from = sprintf('data/ORG/exp_Y/%sd/', ppid),
-      to   = 'data/exp2/',
-      recursive = TRUE
-    )
+    # file.copy(
+    #   from = sprintf('data/ORG/exp_Y/%sd', ppid),
+    #   to   = 'data/exp2/',
+    #   recursive = TRUE
+    # )
+    dir.create(sprintf('data/exp2/%s', ppid))
+    
+    file.copy(from = sprintf('data/ORG/exp_Y/%sd/%s', ppid, c('training.csv','nocursor.csv','localization.csv')),
+              to   = sprintf('data/exp2/%s', ppid),
+              recursive = TRUE)
+    
+    
     
     # # correct the rotation columns for training and nocursor:
     # for (trialtype in c('training','nocursor')) {
@@ -286,6 +295,106 @@ processExpY <- function() {
     
   }
   
+  getReachDeviations(exp=2, trialtype='training')
+  getReachDeviations(exp=2, trialtype='nocursor')
+  getLocalizationDeviations(exp=2)
+  
+  # determine conditions... and add to demographics?
+  rdf <- read.csv( sprintf('data/exp2/training_deviations.csv'), stringsAsFactors = FALSE )
+  trainingtarget <- aggregate(targetangle_deg ~ participant, data=rdf, FUN=head, n=1)
+  demographics <- merge(demographics, trainingtarget, by='participant')
+  
+  write.csv(demographics, 'data/exp2/demographics.csv', row.names = FALSE)
+  
+}
+
+# data utilities -----
+
+getNormalizedDeviations <- function(exp, trialtype) {
+  
+  df <- read.csv( sprintf('data/exp%d/%s_deviations.csv', exp, trialtype), stringsAsFactors = FALSE )
+  
+  demographics <- read.csv( sprintf('data/exp%d/demographics.csv', exp), stringsAsFactors = FALSE )
+  
+  # create temporary work column, with the dependent variable:
+  depvar <- list('training'='reachdeviation_deg',
+                 'nocursor'='reachdeviation_deg',
+                 'localization'='locdev_deg')[[trialtype]]
+  df$depvar <- df[,depvar]
+  
+  # add rotation for localization data frames:  
+  if (trialtype == 'localization') {
+    # localization files do not list rotation
+    # first assign the right magnitude by block:
+    br_map <- c( 0,  0,  0,  0,  0,  0,
+                10, 10, 10,
+                20, 20, 20,
+                30, 30, 30, 
+                40, 40, 40,
+                50, 50, 50, 50, 50, 50)
+    df$rotation_deg <- br_map[df$block+1]
+    # then the right sign by training target:
+    idx <- which(df$participant %in% demographics$participant[which(demographics$targetangle_deg %in% c(70,160))])
+    df$rotation_deg[idx] <- -1 * df$rotation_deg[idx]
+  }
+  
+  if (exp == 2) {
+    
+    # baseline:
+    block_rots <- aggregate(rotation_deg ~ block, data=df, FUN=head, n=1)
+    baseline_blocks <- block_rots$block[which(block_rots$rotation_deg == 0 & block_rots$block > 1)]
+    baseline <- aggregate(depvar ~ participant * targetangle_deg, data=df[df$block %in% baseline_blocks, ], FUN=median)
+    
+    # subtract baselines:
+    for (participant in unique(df$participant)) {
+      pidx <- which(df$participant == participant)
+      for (target in unique(df$targetangle_deg[pidx])) {
+        baseline_bias <- baseline$depvar[which(baseline$participant == participant & baseline$targetangle_deg == target)]
+        # print(baseline_bias)
+        idx <- which(df$participant == participant & df$targetangle_deg == target)
+        df$depvar[idx] <- df$depvar[idx] - baseline_bias
+      }
+    }
+    
+    # avoid later wrap-around:
+    idx <- which(df$targetangle_deg > 300)
+    df$targetangle_deg[idx] <- df$targetangle_deg[idx] - 360
+    
+    # determine 1 / 4 conditions by targetangle:
+    df$reltargetangle_deg <- NA
+
+    # normalize so responses are going towards positive under regular circumstances:
+    if (trialtype %in% c('training','nocursor')) {
+      # training and its aftereffects need to counter the rotation:
+      idx <- which(df$participant %in% demographics$participant[which(demographics$targetangle_deg %in% c(70,160))])
+      df$depvar[idx] <- -1 * df$depvar[idx]
+    } else {
+      # localization goes in the other direction:
+      idx <- which(df$participant %in% demographics$participant[which(demographics$targetangle_deg %in% c(20,110))])
+      df$depvar[idx] <- -1 * df$depvar[idx]
+    }
+  }
+  
+  # normalize so training target is at 0, and eventual ideal hand path is at +50
+  for (trainingtarget in unique(demographics$targetangle_deg)) {
+    ppid <- demographics$participant[which(demographics$targetangle_deg == trainingtarget)]
+    idx <- which(df$participant %in% ppid)
+    # flip for decreasing target angles:
+    if (trainingtarget %in% c(70, 160)) {mf <- -1} else {mf <- 1}
+    df$reltargetangle_deg[idx] <- (df$targetangle_deg[idx] - trainingtarget) * mf
+  }
+  
+  # remove extreme values?
+  df$depvar[which(df$depvar < -30)] <- NA
+  df$depvar[which(df$depvar > (30 + abs(df$rotation_deg)))] <- NA
   
   
+  
+  # move normalized data back into original column:  
+  df[,depvar] <- df$depvar
+  # rmeove temporary work column:
+  kcols <- names(df)[which(!names(df) %in% c('depvar'))]
+  df <- df[,kcols]
+  
+  return(df)
 }
